@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: csp-research-os
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PUBLIC_DEPLOYMENT
+        value: "true"
