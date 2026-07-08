@@ -2292,12 +2292,20 @@ tbody tr:hover {
   }
 
   .main-nav {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: flex-start;
-    overflow-x: auto;
-    padding: 0 2px 6px;
-    scrollbar-width: thin;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: visible;
+    padding: 0;
+    row-gap: 8px;
+  }
+
+  .main-nav .nav-link {
+    flex: 1 1 calc(50% - 8px);
+    justify-content: center;
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
   }
 
   .status-row {
