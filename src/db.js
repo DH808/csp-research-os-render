@@ -5,6 +5,15 @@ const {
   collectEntityModuleIds,
   fallbackEntityFollowups,
   summarizePricing,
+  buildVisualCommandCenter,
+  moduleNameZh,
+  translateResearchPhrase,
+  displayOwnerZh,
+  displayEntityTypeZh,
+  displayLayerZh,
+  sanitizeLocalPathForUi,
+  displayArchiveLabel,
+  translateStatusZh,
 } = require('./view_helpers');
 
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -67,22 +76,104 @@ function publicDbPath() {
   return PUBLIC_DEPLOYMENT ? PUBLIC_DB_LABEL : DB_PATH;
 }
 
+function maskInternalPathText(value) {
+  const raw = String(value || '');
+  if (!raw) return raw;
+  return raw
+    .replace(/\/Users\/[^\s)]+/g, (match) => sanitizeLocalPathForUi(match) || '[local]')
+    .replace(/\/private\/[^\s)]+/g, (match) => sanitizeLocalPathForUi(match) || '[local]');
+}
+
 function sanitizeRow(row) {
-  if (!PUBLIC_DEPLOYMENT || !row || typeof row !== 'object') return row;
+  if (!row || typeof row !== 'object') return row;
   const copy = { ...row };
   for (const key of Object.keys(copy)) {
-    if (key === 'local_path' || key === 'raw_path' || key === 'path_or_uri') copy[key] = null;
+    if (key === 'local_path' || key === 'raw_path' || key === 'path_or_uri') {
+      copy[key] = PUBLIC_DEPLOYMENT ? null : sanitizeLocalPathForUi(copy[key]);
+      continue;
+    }
     if (typeof copy[key] === 'string') {
-      copy[key] = copy[key]
-        .replaceAll('/' + ['Users', 'mac', 'wiki', 'queries', 'csp-market-map-20260707'].join('/'), '[source-pack]')
-        .replaceAll('/' + ['Users', 'mac'].join('/'), '[local]');
+      copy[key] = PUBLIC_DEPLOYMENT
+        ? copy[key]
+          .replaceAll('/' + ['Users', 'mac', 'wiki', 'queries', 'csp-market-map-20260707'].join('/'), '[source-pack]')
+          .replaceAll('/' + ['Users', 'mac'].join('/'), '[local]')
+        : maskInternalPathText(copy[key]);
     }
   }
   return copy;
 }
 
 function sanitizeRows(rows) {
-  return PUBLIC_DEPLOYMENT ? rows.map(sanitizeRow) : rows;
+  return (rows || []).map(sanitizeRow);
+}
+
+function decorateModule(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    name: moduleNameZh(row),
+    core_question: translateResearchPhrase(row.core_question),
+    required_data: translateResearchPhrase(row.required_data),
+    available_data: translateResearchPhrase(row.available_data),
+    available_files: maskInternalPathText(row.available_files),
+    coverage: translateResearchPhrase(row.coverage),
+    judged_so_far: translateResearchPhrase(row.judged_so_far),
+    missing_data: translateResearchPhrase(row.missing_data),
+    scoring_notes: translateResearchPhrase(row.scoring_notes),
+  };
+}
+
+function decorateEntity(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    entity_type: displayEntityTypeZh(row.entity_type),
+    layer: displayLayerZh(row.layer),
+  };
+}
+
+function decorateEvidence(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    module_name: moduleNameZh(row.module_id, row.module_name),
+    extracted_metric: translateResearchPhrase(row.extracted_metric),
+    confidence: translateStatusZh(row.confidence),
+    local_path: displayArchiveLabel(sanitizeRow({ local_path: row.local_path }).local_path, row),
+  };
+}
+
+function decorateFollowup(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    module_name: moduleNameZh(row.module_id, row.module_name),
+    question: translateResearchPhrase(row.question),
+    owner: displayOwnerZh(row.owner),
+    blocker: translateResearchPhrase(row.blocker),
+    source_hint: translateResearchPhrase(row.source_hint),
+  };
+}
+
+function decorateClaim(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    module_name: moduleNameZh(row.module_id, row.module_name),
+    claim_text: translateResearchPhrase(row.claim_text),
+    thesis_direction: translateStatusZh(row.thesis_direction),
+    confidence: translateStatusZh(row.confidence),
+    next_validation: translateResearchPhrase(row.next_validation),
+    invalidation_trigger: translateResearchPhrase(row.invalidation_trigger),
+  };
+}
+
+function decorateQualityCheck(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    severity: translateStatusZh(row.severity),
+  };
 }
 
 function boolParam(value, fallback = true) {
@@ -104,7 +195,7 @@ function moduleList() {
     LEFT JOIN module_data_inventory inv ON m.module_id=inv.module_id
     LEFT JOIN module_scores s ON m.module_id=s.module_id
     ORDER BY CAST(REPLACE(m.module_id,'M','') AS INTEGER)
-  `));
+  `)).map(decorateModule);
 }
 
 function entityList(limit = 100) {
@@ -116,7 +207,7 @@ function entityList(limit = 100) {
     LEFT JOIN entity_scores s ON e.entity_id=s.entity_id
     ORDER BY COALESCE(s.data_completeness_score,0) DESC, e.entity_type, e.name
     LIMIT ${intParam(limit, 100, 500)}
-  `));
+  `)).map(decorateEntity);
 }
 
 function evidenceList(filters = {}) {
@@ -139,7 +230,7 @@ function evidenceList(filters = {}) {
     ${whereSql}
     ORDER BY COALESCE(e.publish_date,e.as_of,e.created_at) DESC, e.materiality DESC
     LIMIT ${limit}
-  `));
+  `)).map(decorateEvidence);
 }
 
 function factList(filters = {}) {
@@ -208,7 +299,7 @@ function followups(filters = 'open') {
     ${whereSql}
     ORDER BY f.priority DESC, f.module_id, COALESCE(f.updated_at, f.created_at) DESC
     LIMIT ${limit}
-  `));
+  `)).map(decorateFollowup);
 }
 
 function claims(filters = {}) {
@@ -224,7 +315,7 @@ function claims(filters = {}) {
     LEFT JOIN entities e ON c.entity_id=e.entity_id
     ${whereSql}
     ORDER BY c.materiality DESC, c.updated_at DESC
-  `));
+  `)).map(decorateClaim);
 }
 
 function buildPayloadMeta(options) {
@@ -246,7 +337,7 @@ function moduleDetail(id, options = {}) {
     defaultEvidenceLimit: PAYLOAD_DEFAULTS.moduleEvidenceLimit,
     defaultFactLimit: PAYLOAD_DEFAULTS.moduleFactLimit,
   });
-  const module = sanitizeRow(sqlGet(`
+  const module = decorateModule(sanitizeRow(sqlGet(`
     SELECT m.*, inv.required_data, inv.available_data, inv.available_files, inv.coverage,
            inv.judged_so_far, inv.missing_data, s.coverage_score, s.official_source_score,
            s.recency_score, s.confidence_score, s.completeness_score, s.score_label,
@@ -256,7 +347,7 @@ function moduleDetail(id, options = {}) {
     LEFT JOIN module_data_inventory inv ON m.module_id=inv.module_id
     LEFT JOIN module_scores s ON m.module_id=s.module_id
     WHERE m.module_id='${escapeSqlLiteral(id)}'
-  `));
+  `)));
   if (!module) return null;
   const evidence = payloadMeta.includeEvidence ? evidenceList({ module: id, limit: payloadMeta.evidenceLimit }) : [];
   const facts = payloadMeta.includeFacts ? factList({ module: id, limit: payloadMeta.factLimit }) : [];
@@ -280,12 +371,12 @@ function entityDetail(id, options = {}) {
     defaultEvidenceLimit: PAYLOAD_DEFAULTS.entityEvidenceLimit,
     defaultFactLimit: PAYLOAD_DEFAULTS.entityFactLimit,
   });
-  const entity = sanitizeRow(sqlGet(`
+  const entity = decorateEntity(sanitizeRow(sqlGet(`
     SELECT e.*, s.data_completeness_score, s.score_label, s.evidence_count, s.fact_count,
            s.module_count, s.official_source_count, s.latest_evidence_date
     FROM entities e LEFT JOIN entity_scores s ON e.entity_id=s.entity_id
     WHERE e.entity_id='${escapeSqlLiteral(id)}'
-  `));
+  `)));
   if (!entity) return null;
   const evidence = payloadMeta.includeEvidence ? evidenceList({ entity: id, limit: payloadMeta.evidenceLimit }) : [];
   const facts = payloadMeta.includeFacts ? factList({ entity: id, limit: payloadMeta.factLimit }) : [];
@@ -329,23 +420,34 @@ function state() {
     counts[table] = sqlGet(`SELECT count(*) AS count FROM ${table}`).count;
   }
   const modules = moduleList();
+  const topEntities = entityList(20);
+  const topEvidence = evidenceList({ limit: 30 });
+  const openFollowups = followups('open');
+  const allClaims = claims({});
   const green = modules.filter(m => String(m.score_label || '').includes('green')).length;
   const orange = modules.filter(m => String(m.score_label || '').includes('orange') || String(m.score_label || '').includes('red')).length;
   return {
-    meta: { app: 'CSP ResearchOS Workbench', dbPath: publicDbPath(), generatedAt: new Date().toISOString() },
+    meta: { app: 'CSP 投研驾驶舱', dbPath: PUBLIC_DB_LABEL, generatedAt: new Date().toISOString() },
     counts,
     regime: {
-      label: 'Supplier Capture / CSP FCF Audit',
-      description: 'AI capex demand is strong, but the market is auditing whether CSP capex/RPO becomes durable revenue, margin and FCF rather than supplier-only profit-pool capture.',
+      label: '供应商利润捕获与 CSP FCF 审计',
+      description: 'AI Capex 需求仍强，但市场正在审计：CSP 的 Capex / RPO 能否转化为可持续收入、利润率与自由现金流，而不是只让供应商捕获利润池。',
       moduleGreenCount: green,
       moduleGapCount: orange,
     },
     modules,
-    topEntities: entityList(20),
-    topEvidence: evidenceList({ limit: 30 }),
-    openFollowups: followups('open').slice(0, 30),
-    claims: claims({}).slice(0, 20),
-    qualityChecks: sanitizeRows(sqlJson('SELECT * FROM data_quality_checks ORDER BY severity DESC, status')),
+    topEntities,
+    topEvidence,
+    openFollowups,
+    claims: allClaims.slice(0, 20),
+    commandCenter: buildVisualCommandCenter({
+      modules,
+      openFollowups,
+      claims: allClaims,
+      topEvidence,
+      topEntities,
+    }),
+    qualityChecks: sanitizeRows(sqlJson('SELECT * FROM data_quality_checks ORDER BY severity DESC, status')).map(decorateQualityCheck),
   };
 }
 

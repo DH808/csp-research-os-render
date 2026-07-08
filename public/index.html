@@ -1,24 +1,24 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CSP ResearchOS Command Center</title>
-  <link rel="stylesheet" href="style.css?v=20260708-command-center" />
+  <title>CSP 投研驾驶舱</title>
+  <link rel="stylesheet" href="style.css?v=20260708-task007" />
 </head>
 <body>
   <div class="page-shell">
     <header class="topbar">
       <div class="topbar-copy">
-        <div class="eyebrow">ResearchOS / CSP Hyperscaler</div>
-        <h1>CSP ResearchOS Command Center</h1>
-        <p>Decision-first coverage of AI capex, monetization, backlog quality, pricing boundaries, and open research blockers. Evidence first, confidence bounded, snapshot-based.</p>
+        <div class="eyebrow">CSP / AI 基础设施研究工作台</div>
+        <h1>CSP 投研驾驶舱</h1>
+        <p>围绕 AI Capex、CSP FCF、供应商利润捕获、Neocloud 压力与价格边界的证据驱动工作台。</p>
       </div>
       <div class="topbar-actions">
         <nav class="main-nav" id="mainNav"></nav>
         <div class="status-row">
-          <button id="refreshBtn" type="button">Refresh</button>
-          <div class="status-pill" id="health">Loading DB…</div>
+          <button id="refreshBtn" type="button">刷新</button>
+          <div class="status-pill" id="health">加载数据中…</div>
         </div>
       </div>
     </header>
@@ -26,7 +26,7 @@
     <main>
       <section class="hero-grid">
         <div class="regime-card">
-          <div class="eyebrow">Market Regime</div>
+          <div class="eyebrow">当前市场命题</div>
           <h2 id="regimeLabel">—</h2>
           <p id="regimeDescription">—</p>
         </div>
@@ -36,10 +36,10 @@
       <section class="panel route-panel">
         <div class="panel-head route-head">
           <div>
-            <div class="eyebrow" id="routeEyebrow">Command Center</div>
-            <h2 id="routeTitle">Coverage Priorities</h2>
+            <div class="eyebrow" id="routeEyebrow">决策总览</div>
+            <h2 id="routeTitle">覆盖优先级</h2>
           </div>
-          <span id="routeHint">Start with the themes and companies that still block an IC-ready read.</span>
+          <span id="routeHint">先看仍然阻碍 IC 形成判断的主题与公司，再进入下层证据与明细。</span>
         </div>
         <div id="view" class="view-root"></div>
       </section>
@@ -49,6 +49,6 @@
     <footer class="app-footer" id="appFooter"></footer>
   </div>
 
-  <script src="app.js?v=20260708-command-center"></script>
+  <script src="app.js?v=20260708-task007"></script>
 </body>
 </html>
