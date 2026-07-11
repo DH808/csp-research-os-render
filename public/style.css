@@ -2813,7 +2813,7 @@ tbody tr:hover {
 .today-page > .investor-section { padding: 13px 15px; }
 .today-page .queue-table td { padding: 8px; }
 .today-page .queue-table td:first-child { min-width: 160px; }
-.today-support { gap: 12px; align-items: start; }
+.today-support { gap: 12px; align-items: start; grid-template-columns: 1fr; }
 .change-tape { min-height: 0; align-self: start; }
 .change-tape > div { display: flex; align-items: baseline; gap: 12px; }
 .change-tape h3 { margin: 0; white-space: nowrap; }
