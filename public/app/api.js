@@ -10,28 +10,24 @@
     return response.json();
   }
 
-  function normalizePublicBootstrap(payload) {
-    return {
-      ...payload,
-      today: { changedCases: [], reviewDueCases: [], topBlockers: [], nextResearchTasks: [], dataAlerts: [] },
-      decisionCases: payload.decisionCases || [],
-      driverSummary: [],
-      dataHealthSummary: {},
-    };
-  }
-
   async function bootstrap() {
-    return publicMode
-      ? normalizePublicBootstrap(await get('/api/v1/public/bootstrap'))
-      : get('/api/v1/bootstrap');
+    const requests = [get('/api/v1/public/today'), get('/api/v1/public/decision-cases')];
+    if (!publicMode) requests.push(get('/api/v1/bootstrap'));
+    const [today, cases, legacy] = await Promise.all(requests);
+    return { ...(legacy || {}), meta: legacy ? legacy.meta : today.meta, today, decisionCases: cases.decisionCases || [], driverSummary: legacy ? legacy.driverSummary : [], dataHealthSummary: legacy ? legacy.dataHealthSummary : {} };
   }
 
   global.DecisionApi = Object.freeze({
-    bootstrap,
-    publicMode,
-    cases: () => get(publicMode ? '/api/v1/public/decision-cases' : '/api/v1/decision-cases'),
-    caseDetail: (id) => get(publicMode ? `/api/v1/public/decision-cases/${encodeURIComponent(id)}` : `/api/v1/decision-cases/${encodeURIComponent(id)}`),
-    drivers: async () => publicMode ? { meta: (await bootstrap()).meta, drivers: [] } : get('/api/v1/drivers'),
-    dataHealth: async () => publicMode ? { meta: (await bootstrap()).meta, dataHealthSummary: {}, blockers: [] } : get('/api/v1/data-health'),
+    bootstrap, publicMode,
+    today: () => get('/api/v1/public/today'),
+    cases: () => get('/api/v1/public/decision-cases'),
+    caseDetail: (id) => get(`/api/v1/public/decision-cases/${encodeURIComponent(id)}`),
+    universe: () => get('/api/v1/public/universe'),
+    entity: (id) => get(`/api/v1/public/entities/${encodeURIComponent(id)}`),
+    drivers: () => get('/api/v1/public/drivers'),
+    driver: (id) => get(`/api/v1/public/drivers/${encodeURIComponent(id)}`),
+    database: () => get('/api/v1/public/database-summary'),
+    audit: () => get('/api/v1/public/audit-summary'),
+    dataHealth: () => publicMode ? get('/api/v1/public/audit-summary') : get('/api/v1/data-health'),
   });
 })(window);

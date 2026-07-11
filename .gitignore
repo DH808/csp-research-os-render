@@ -2,3 +2,6 @@ server.out.log
 server.err.log
 node_modules/
 .DS_Store
+__pycache__/
+*.pyc
+data/backups/

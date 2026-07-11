@@ -30,12 +30,13 @@ const CLAIM_STATUSES = ['proposed', 'evidence_backed', 'confirmed', 'weakened', 
 const NAV_ITEMS = [
   { section: 'today', label: 'Today' },
   { section: 'decision-cases', label: 'Decision Cases' },
-  { section: 'drivers', label: '关键驱动' },
-  { section: 'entities', label: '公司观察' },
+  { section: 'universe', label: 'Universe' },
+  { section: 'drivers', label: 'Drivers' },
+  { section: 'database', label: 'Database' },
+  { section: 'audit', label: 'Audit' },
   { section: 'modules', label: '研究工作区' },
-  { section: 'data-audit', label: 'Data & Audit' },
 ];
-const PUBLIC_NAV_ITEMS = NAV_ITEMS.filter((item) => ['today', 'decision-cases'].includes(item.section));
+const PUBLIC_NAV_ITEMS = NAV_ITEMS.filter((item) => ['today', 'decision-cases', 'universe', 'drivers', 'database', 'audit'].includes(item.section));
 
 if (APP_PUBLIC) {
   document.querySelector('.topbar-copy .eyebrow').textContent = 'CSP / AI 基础设施决策研究';
@@ -986,7 +987,7 @@ function parseRoute() {
   const [pathname, queryString = ''] = normalized.split('?');
   const segments = pathname.split('/').filter(Boolean).map(decodeURIComponent);
   const params = Object.fromEntries(new URLSearchParams(queryString));
-  const route = { section: 'today', params, moduleId: null, entityId: null, decisionCaseId: null };
+  const route = { section: 'today', params, moduleId: null, entityId: null, decisionCaseId: null, driverId: null };
 
   if (!segments.length || segments[0] === 'today') {
     route.section = 'today';
@@ -999,6 +1000,16 @@ function parseRoute() {
   }
   if (segments[0] === 'drivers') {
     route.section = 'drivers';
+    route.driverId = segments[1] || null;
+    return route;
+  }
+  if (segments[0] === 'universe') {
+    route.section = 'universe';
+    route.entityId = segments[1] || null;
+    return route;
+  }
+  if (segments[0] === 'database' || segments[0] === 'audit') {
+    route.section = segments[0];
     return route;
   }
   if (segments[0] === 'data-audit') {
@@ -1064,7 +1075,7 @@ function renderChrome(route) {
   const state = app.state;
   const navItems = APP_PUBLIC ? PUBLIC_NAV_ITEMS : NAV_ITEMS;
   $('mainNav').innerHTML = navItems.map((item) => navLink(item.section, item.label, route)).join('');
-  if (['today', 'decision-cases', 'drivers', 'data-audit'].includes(route.section) && app.decisionBootstrap) {
+  if (['today', 'decision-cases', 'universe', 'drivers', 'database', 'audit', 'data-audit'].includes(route.section) && app.decisionBootstrap) {
     const payload = app.decisionBootstrap;
     const cases = payload.decisionCases || [];
     const reviewDue = payload.today && payload.today.reviewDueCases || [];
@@ -1127,6 +1138,15 @@ function routeMeta(route) {
   }
   if (route.section === 'drivers') {
     return { eyebrow: 'Driver Monitor', title: '关键驱动', hint: '缺失与零分开，业务驱动连接证据、观点与 Decision Case。' };
+  }
+  if (route.section === 'universe') {
+    return { eyebrow: 'Company Explorer', title: route.entityId ? '公司数据档案' : 'Universe', hint: '44 个实体的公开事实、关联判断、Evidence 新鲜度与缺失项。' };
+  }
+  if (route.section === 'database') {
+    return { eyebrow: 'Structured Database', title: 'Database', hint: '结构化事实、证据、公开标价与指标覆盖。' };
+  }
+  if (route.section === 'audit') {
+    return { eyebrow: 'Data Integrity', title: 'Audit', hint: '断链、缺失、快照与模型可用性；不是投资信号。' };
   }
   if (route.section === 'data-audit') {
     return { eyebrow: 'Data & Audit', title: '数据与审计', hint: '快照、来源、日期和 provenance 缺口；coverage 不代表投资置信度。' };
@@ -2987,11 +3007,8 @@ function safeErrorMessage(err) {
 
 function renderErrorCard(route, err) {
   const meta = routeMeta(route);
-  const retryTarget = route.section === 'modules' && route.moduleId
-    ? routeHref(`/modules/${encodeURIComponent(route.moduleId)}`, route.params)
-    : route.section === 'entities' && route.entityId
-      ? routeHref(`/entities/${encodeURIComponent(route.entityId)}`, route.params)
-      : routeHref(`/${route.section}`, route.params);
+  const isPublicDetail = route.decisionCaseId || route.entityId || route.driverId;
+  const returnTarget = route.decisionCaseId ? routeHref('/decision-cases') : route.entityId ? routeHref('/universe') : route.driverId ? routeHref('/drivers') : routeHref('/today');
   const adminDetails = APP_ADMIN && err
     ? `<details class="error-details"><summary>开发者详情</summary><pre>${escapeHtml(String(err.message || err))}</pre></details>`
     : '';
@@ -3001,26 +3018,34 @@ function renderErrorCard(route, err) {
       <h3>${escapeHtml(meta.title)}</h3>
       <p>${escapeHtml(safeErrorMessage(err))}</p>
       <div class="link-pills">
-        <a href="${routeHref('/modules')}">返回决策总览</a>
-        <a href="${retryTarget}" id="retryViewLink">重试当前视图</a>
+        <button type="button" id="retryViewButton">重试当前视图</button>
+        <a href="${isPublicDetail ? returnTarget : routeHref('/today')}">${isPublicDetail ? '返回列表' : '返回 Today'}</a>
       </div>
       ${adminDetails}
     </section>
   `;
 }
 
+function renderLoadingState(route) {
+  if (route.decisionCaseId) {
+    const item = (app.decisionBootstrap && app.decisionBootstrap.decisionCases || []).find((entry) => entry.decisionCaseId === route.decisionCaseId);
+    return `<section class="case-investor-header loading-detail-header"><a class="decision-back" href="${routeHref('/decision-cases')}">← 返回 Decision Cases</a><h2>${escapeHtml(item ? item.title : 'Decision Case')}</h2><p>正在加载财务与证据详情…</p></section>`;
+  }
+  return '<div class="loading-state">正在加载当前视图…</div>';
+}
+
 async function renderRoute() {
   let route = parseRoute();
-  if (APP_PUBLIC && !['today', 'decision-cases'].includes(route.section)) {
+  if (APP_PUBLIC && !['today', 'decision-cases', 'universe', 'drivers', 'database', 'audit'].includes(route.section)) {
     route = { section: 'today', params: {}, moduleId: null, entityId: null, decisionCaseId: null };
     if (window.location.hash !== '#/today') window.history.replaceState(null, '', '#/today');
   }
-  if (['today', 'decision-cases', 'drivers', 'data-audit'].includes(route.section)) {
+  if (['today', 'decision-cases', 'universe', 'drivers', 'database', 'audit', 'data-audit'].includes(route.section)) {
     await loadDecisionBootstrap();
   }
   renderChrome(route);
   renderMeta(route);
-  $('view').innerHTML = '<div class="loading-state">页面加载中…</div>';
+  $('view').innerHTML = renderLoadingState(route);
 
   if (route.section === 'today') {
     $('view').innerHTML = window.DecisionViews.renderToday(app.decisionBootstrap);
@@ -3033,17 +3058,36 @@ async function renderRoute() {
       : await window.DecisionApi.cases();
     $('view').innerHTML = route.decisionCaseId
       ? window.DecisionViews.renderCaseDetail(payload)
-      : window.DecisionViews.renderCaseList(payload);
+      : window.DecisionViews.renderCaseList(payload, route.params);
+    if (!route.decisionCaseId) window.DecisionViews.bindCaseFilters();
     return;
   }
 
   if (route.section === 'drivers') {
-    $('view').innerHTML = window.DecisionViews.renderDrivers(await window.DecisionApi.drivers());
+    const payload = route.driverId ? await window.DecisionApi.driver(route.driverId) : await window.DecisionApi.drivers();
+    $('view').innerHTML = route.driverId ? window.DecisionViews.renderDriver(payload) : window.DecisionViews.renderDrivers(payload);
+    return;
+  }
+
+  if (route.section === 'universe') {
+    const payload = route.entityId ? await window.DecisionApi.entity(route.entityId) : await window.DecisionApi.universe();
+    $('view').innerHTML = route.entityId ? window.DecisionViews.renderEntity(payload) : window.DecisionViews.renderUniverse(payload, route.params);
+    if (!route.entityId) window.DecisionViews.bindUniverseFilters();
+    return;
+  }
+
+  if (route.section === 'database') {
+    $('view').innerHTML = window.DecisionViews.renderDatabase(await window.DecisionApi.database());
+    return;
+  }
+
+  if (route.section === 'audit') {
+    $('view').innerHTML = window.DecisionViews.renderAudit(await window.DecisionApi.audit());
     return;
   }
 
   if (route.section === 'data-audit') {
-    $('view').innerHTML = window.DecisionViews.renderDataAudit(await window.DecisionApi.dataHealth());
+    $('view').innerHTML = window.DecisionViews.renderAudit(await window.DecisionApi.audit());
     return;
   }
 
@@ -3171,6 +3215,8 @@ function renderError(err) {
   if ($('health')) $('health').textContent = '需要关注';
   renderMeta(route);
   $('view').innerHTML = renderErrorCard(route, err);
+  const retry = document.getElementById('retryViewButton');
+  if (retry) retry.addEventListener('click', () => renderRoute().catch(renderError));
 }
 
 if (!window.location.hash) {

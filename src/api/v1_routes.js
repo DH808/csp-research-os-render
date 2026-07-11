@@ -1,11 +1,14 @@
 'use strict';
 
 const { createDecisionService } = require('../services/decision_service');
-const { projectPublicBootstrap, projectPublicDecisionCases, projectPublicDecisionCase } = require('../services/public_projection_service');
+const { createInvestorDashboardService } = require('../services/investor_dashboard_service');
+const { createPublicInvestorProjectionService } = require('../services/public_investor_projection_service');
 const { sendJson, sendApiError } = require('./http_utils');
 
 function createV1Router({ dbPath, now, publicDeployment = false } = {}) {
   const service = createDecisionService({ dbPath, now });
+  const investorService = createInvestorDashboardService({ dbPath, now });
+  const publicInvestor = createPublicInvestorProjectionService({ investorService });
 
   function route(req, res, parsed, id) {
     const pathname = parsed.pathname;
@@ -29,11 +32,26 @@ function createV1Router({ dbPath, now, publicDeployment = false } = {}) {
     try {
       const q = parsed.query || {};
       let payload;
-      if (pathname === '/api/v1/public/bootstrap') payload = projectPublicBootstrap(service.bootstrap());
-      else if (pathname === '/api/v1/public/decision-cases') payload = projectPublicDecisionCases(service.listDecisionCases({ limit: q.limit }));
+      if (pathname === '/api/v1/public/today') payload = publicInvestor.today();
+      else if (pathname === '/api/v1/public/decision-cases') {
+        if (q.limit !== undefined && (!/^\d+$/.test(String(q.limit)) || Number(q.limit) <= 0)) throw new TypeError('limit must be a positive integer');
+        payload = publicInvestor.decisionCases();
+        if (q.limit !== undefined) payload.decisionCases = payload.decisionCases.slice(0, Math.min(Number(q.limit), 100));
+      }
       else if (pathname.startsWith('/api/v1/public/decision-cases/')) {
-        const internal = service.getDecisionCase(decodeURIComponent(pathname.slice('/api/v1/public/decision-cases/'.length)));
-        payload = projectPublicDecisionCase(internal);
+        payload = publicInvestor.decisionCase(decodeURIComponent(pathname.slice('/api/v1/public/decision-cases/'.length)));
+      } else if (pathname === '/api/v1/public/universe') payload = publicInvestor.universe();
+      else if (pathname.startsWith('/api/v1/public/entities/')) {
+        payload = publicInvestor.entity(decodeURIComponent(pathname.slice('/api/v1/public/entities/'.length)));
+      } else if (pathname === '/api/v1/public/drivers') payload = publicInvestor.drivers();
+      else if (pathname.startsWith('/api/v1/public/drivers/')) {
+        payload = publicInvestor.driver(decodeURIComponent(pathname.slice('/api/v1/public/drivers/'.length)));
+      } else if (pathname === '/api/v1/public/database-summary') payload = publicInvestor.databaseSummary();
+      else if (pathname === '/api/v1/public/audit-summary') payload = publicInvestor.auditSummary();
+      else if (pathname === '/api/v1/public/bootstrap') {
+        const today = publicInvestor.today();
+        const cases = publicInvestor.decisionCases();
+        payload = { meta: today.meta, today, decisionCases: cases.decisionCases };
       } else if (pathname === '/api/v1/bootstrap') payload = service.bootstrap();
       else if (pathname === '/api/v1/decision-cases') payload = service.listDecisionCases({ limit: q.limit });
       else if (pathname.startsWith('/api/v1/decision-cases/')) {
