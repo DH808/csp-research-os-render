@@ -9,10 +9,12 @@
     csp: 'CSP 云厂商', neocloud: 'Neocloud / GPU 云', supplier: '供应商', power: '电力 / 数据中心',
     model_lab: '模型公司', basket: '组合篮子', supply_chain: '供应链', supporting: '支持', challenging: '反证',
     primary: '核心', contextual: '背景', opposing: '反对', neutral: '中性',
+    reviewed: '已审核', not_reviewed: '未审核', reviewed_support: '已审核支持', contested: '存在反证',
     high: '高', medium: '中', low: '低', ok: '正常', broken: '异常', unscored: '未评分',
     sec_xbrl_companyfacts: 'SEC XBRL 公司事实', public_pricing: '公开定价页',
     realized_price: '真实成交价', utilization: '利用率', capacity_vintage: '产能批次',
     contract_economics: '合同经济性', customer_concentration_credit: '客户集中度与信用', secondary_spot_availability: '二级 / 现货可用性',
+    annual: '年度', quarterly: '单季度', ytd: '年初至今', point_in_time: '时点', all: '全部口径',
   });
   function presentation(value) {
     if (typeof value !== 'string') return value;

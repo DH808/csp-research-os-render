@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 const APP_BASE = location.pathname.startsWith('/csp') ? '/csp' : '';
 const APP_ADMIN = new URLSearchParams(window.location.search).get('admin') === '1';
 const APP_PUBLIC = window.DecisionApi.publicMode;
+const routeRuntime = window.RouteRuntime.create();
 
 const app = {
   state: null,
@@ -987,7 +988,7 @@ function parseRoute() {
   const [pathname, queryString = ''] = normalized.split('?');
   const segments = pathname.split('/').filter(Boolean).map(decodeURIComponent);
   const params = Object.fromEntries(new URLSearchParams(queryString));
-  const route = { section: 'today', params, moduleId: null, entityId: null, decisionCaseId: null, driverId: null };
+  const route = { section: 'today', params, moduleId: null, entityId: null, decisionCaseId: null, driverId: null, claimId: null, evidenceId: null, databaseMetric: null };
 
   if (!segments.length || segments[0] === 'today') {
     route.section = 'today';
@@ -1010,8 +1011,12 @@ function parseRoute() {
   }
   if (segments[0] === 'database' || segments[0] === 'audit') {
     route.section = segments[0];
+    if (segments[0] === 'database' && segments[1] === 'metrics') route.databaseMetric = segments[2] || null;
     return route;
   }
+  if (segments[0] === 'claims') { route.section = 'claims-public'; route.claimId = segments[1] || null; return route; }
+  if (segments[0] === 'evidence' && segments[1]) { route.section = 'evidence-public'; route.evidenceId = segments[1]; return route; }
+  if (segments[0] === 'compare') { route.section = 'compare'; return route; }
   if (segments[0] === 'data-audit') {
     route.section = 'data-audit';
     return route;
@@ -1075,7 +1080,7 @@ function renderChrome(route) {
   const state = app.state;
   const navItems = APP_PUBLIC ? PUBLIC_NAV_ITEMS : NAV_ITEMS;
   $('mainNav').innerHTML = navItems.map((item) => navLink(item.section, item.label, route)).join('');
-  if (['today', 'decision-cases', 'universe', 'drivers', 'database', 'audit', 'data-audit'].includes(route.section) && app.decisionBootstrap) {
+  if (['today', 'decision-cases', 'universe', 'drivers', 'database', 'audit', 'data-audit', 'claims-public', 'evidence-public', 'compare'].includes(route.section) && app.decisionBootstrap) {
     const payload = app.decisionBootstrap;
     const cases = payload.decisionCases || [];
     const reviewDue = payload.today && payload.today.reviewDueCases || [];
@@ -1148,6 +1153,9 @@ function routeMeta(route) {
   if (route.section === 'audit') {
     return { eyebrow: 'Data Integrity', title: 'Audit', hint: '断链、缺失、快照与模型可用性；不是投资信号。' };
   }
+  if (route.section === 'claims-public') return { eyebrow: '观点审核', title: '观点详情', hint: '已审核证据与背景候选证据严格分开。' };
+  if (route.section === 'evidence-public') return { eyebrow: '证据', title: '证据详情', hint: '仅展示可公开的来源、摘录、结构化字段与限制。' };
+  if (route.section === 'compare') return { eyebrow: '横向比较', title: '公司对比', hint: '缺失值不纳入比较，期间差异明确提示；不做投资排名。' };
   if (route.section === 'data-audit') {
     return { eyebrow: 'Data & Audit', title: '数据与审计', hint: '快照、来源、日期和 provenance 缺口；coverage 不代表投资置信度。' };
   }
@@ -3034,8 +3042,38 @@ function renderLoadingState(route) {
   return '<div class="loading-state">正在加载当前视图…</div>';
 }
 
+async function renderPublicRoute(route) {
+  const allowed = ['today','decision-cases','universe','drivers','database','audit','claims-public','evidence-public','compare'];
+  if (!allowed.includes(route.section) || (route.section === 'claims-public' && !route.claimId)) {
+    route = { section: 'today', params: {} }; window.history.replaceState(null, '', '#/today');
+  }
+  const request = routeRuntime.begin(`${route.section}:${JSON.stringify(route.params || {})}`);
+  app.decisionBootstrap ||= { decisionCases: [], today: {} };
+  routeRuntime.commit(request, () => { renderChrome(route); renderMeta(route); $('view').innerHTML = renderLoadingState(route); });
+  const options = { signal: request.signal };
+  const timed = (promise) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 12000))]);
+  try {
+    let html;
+    if (route.section === 'today') html = window.DecisionViews.renderToday(await timed(window.DecisionApi.today(options)));
+    else if (route.section === 'decision-cases') { const payload = route.decisionCaseId ? await timed(window.DecisionApi.caseDetail(route.decisionCaseId, options)) : await timed(window.DecisionApi.cases(options)); html = route.decisionCaseId ? window.DecisionViews.renderCaseDetail(payload) : window.DecisionViews.renderCaseList(payload, route.params); }
+    else if (route.section === 'universe') { const payload = route.entityId ? await timed(window.DecisionApi.entity(route.entityId, route.params, options)) : await timed(window.DecisionApi.universe(options)); html = route.entityId ? window.DecisionViews.renderEntity(payload, route.params) : window.DecisionViews.renderUniverse(payload, route.params); }
+    else if (route.section === 'drivers') { const payload = route.driverId ? await timed(window.DecisionApi.driver(route.driverId, options)) : await timed(window.DecisionApi.drivers(options)); html = route.driverId ? window.DecisionViews.renderDriver(payload) : window.DecisionViews.renderDrivers(payload); }
+    else if (route.section === 'database' && route.databaseMetric) html = window.DecisionViews.renderDatabaseMetric(await timed(window.DecisionApi.databaseMetric(route.databaseMetric, options)));
+    else if (route.section === 'database') html = window.DecisionViews.renderDatabase(await timed(window.DecisionApi.database(options)));
+    else if (route.section === 'audit') { const [summary,issues] = await timed(Promise.all([window.DecisionApi.audit(options),window.DecisionApi.auditIssues(new URLSearchParams(route.params).toString(),options)])); html = window.DecisionViews.renderAudit(summary,issues); }
+    else if (route.section === 'claims-public') html = window.DecisionViews.renderClaim(await timed(window.DecisionApi.claim(route.claimId, options)));
+    else if (route.section === 'evidence-public') html = window.DecisionViews.renderEvidence(await timed(window.DecisionApi.evidence(route.evidenceId, options)));
+    else html = window.DecisionViews.renderCompare(await timed(window.DecisionApi.compare(new URLSearchParams(route.params).toString(), options)));
+    routeRuntime.commit(request, () => { $('view').innerHTML = html; renderChrome(route); renderMeta(route); if (route.section === 'decision-cases' && !route.decisionCaseId) window.DecisionViews.bindCaseFilters(); if (route.section === 'universe' && !route.entityId) window.DecisionViews.bindUniverseFilters(); });
+  } catch (error) {
+    if (!routeRuntime.current(request) || error.name === 'AbortError') return;
+    routeRuntime.commit(request, () => { $('view').innerHTML = renderErrorCard(route,error); const retry=document.getElementById('retryViewButton'); if(retry) retry.addEventListener('click',()=>renderPublicRoute(parseRoute())); });
+  }
+}
+
 async function renderRoute() {
   let route = parseRoute();
+  if (APP_PUBLIC) return renderPublicRoute(route);
   if (APP_PUBLIC && !['today', 'decision-cases', 'universe', 'drivers', 'database', 'audit'].includes(route.section)) {
     route = { section: 'today', params: {}, moduleId: null, entityId: null, decisionCaseId: null };
     if (window.location.hash !== '#/today') window.history.replaceState(null, '', '#/today');

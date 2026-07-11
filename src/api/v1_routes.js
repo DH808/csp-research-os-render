@@ -31,6 +31,8 @@ function createV1Router({ dbPath, now, publicDeployment = false } = {}) {
     }
     try {
       const q = parsed.query || {};
+      for (const key of ['limit','cursor']) if (q[key] !== undefined && (!/^\d+$/.test(String(q[key])) || (key === 'limit' && Number(q[key]) <= 0))) throw new TypeError(`${key} must be a ${key === 'limit' ? 'positive ' : ''}integer`);
+      if (q.periodType !== undefined && !['annual','quarterly','ytd','point_in_time','all'].includes(String(q.periodType))) throw new TypeError('periodType must be annual, quarterly, ytd, point_in_time, or all');
       let payload;
       if (pathname === '/api/v1/public/today') payload = publicInvestor.today();
       else if (pathname === '/api/v1/public/decision-cases') {
@@ -38,15 +40,34 @@ function createV1Router({ dbPath, now, publicDeployment = false } = {}) {
         payload = publicInvestor.decisionCases();
         if (q.limit !== undefined) payload.decisionCases = payload.decisionCases.slice(0, Math.min(Number(q.limit), 100));
       }
-      else if (pathname.startsWith('/api/v1/public/decision-cases/')) {
+      else if (/^\/api\/v1\/public\/decision-cases\/[^/]+\/history$/.test(pathname)) {
+        payload = publicInvestor.decisionHistory(decodeURIComponent(pathname.split('/')[5]));
+      } else if (pathname.startsWith('/api/v1/public/decision-cases/')) {
         payload = publicInvestor.decisionCase(decodeURIComponent(pathname.slice('/api/v1/public/decision-cases/'.length)));
       } else if (pathname === '/api/v1/public/universe') payload = publicInvestor.universe();
-      else if (pathname.startsWith('/api/v1/public/entities/')) {
-        payload = publicInvestor.entity(decodeURIComponent(pathname.slice('/api/v1/public/entities/'.length)));
+      else if (/^\/api\/v1\/public\/entities\/[^/]+\/metrics\/[^/]+\/series$/.test(pathname)) {
+        const parts = pathname.split('/'); payload = publicInvestor.metricSeries(decodeURIComponent(parts[5]), decodeURIComponent(parts[7]), q);
+      } else if (/^\/api\/v1\/public\/entities\/[^/]+\/evidence$/.test(pathname)) {
+        payload = publicInvestor.entityEvidence(decodeURIComponent(pathname.split('/')[5]), q);
+      } else if (pathname.startsWith('/api/v1/public/entities/')) {
+        payload = publicInvestor.entity(decodeURIComponent(pathname.slice('/api/v1/public/entities/'.length)), q);
+      } else if (/^\/api\/v1\/public\/claims\/[^/]+\/evidence$/.test(pathname)) {
+        payload = publicInvestor.claimEvidence(decodeURIComponent(pathname.split('/')[5]));
+      } else if (pathname.startsWith('/api/v1/public/claims/')) {
+        payload = publicInvestor.claim(decodeURIComponent(pathname.slice('/api/v1/public/claims/'.length)));
+      } else if (pathname.startsWith('/api/v1/public/evidence/')) {
+        payload = publicInvestor.evidence(decodeURIComponent(pathname.slice('/api/v1/public/evidence/'.length)));
+      } else if (pathname === '/api/v1/public/compare') {
+        payload = publicInvestor.compare(q);
       } else if (pathname === '/api/v1/public/drivers') payload = publicInvestor.drivers();
-      else if (pathname.startsWith('/api/v1/public/drivers/')) {
+      else if (/^\/api\/v1\/public\/drivers\/[^/]+\/observations$/.test(pathname)) {
+        payload = publicInvestor.driverObservations(decodeURIComponent(pathname.split('/')[5]), q);
+      } else if (pathname.startsWith('/api/v1/public/drivers/')) {
         payload = publicInvestor.driver(decodeURIComponent(pathname.slice('/api/v1/public/drivers/'.length)));
-      } else if (pathname === '/api/v1/public/database-summary') payload = publicInvestor.databaseSummary();
+      } else if (pathname === '/api/v1/public/database/metrics') payload = publicInvestor.databaseMetrics(q);
+      else if (pathname.startsWith('/api/v1/public/database/metrics/')) payload = publicInvestor.databaseMetric(decodeURIComponent(pathname.slice('/api/v1/public/database/metrics/'.length)), q);
+      else if (pathname === '/api/v1/public/audit/issues') payload = publicInvestor.auditIssues(q);
+      else if (pathname === '/api/v1/public/database-summary') payload = publicInvestor.databaseSummary();
       else if (pathname === '/api/v1/public/audit-summary') payload = publicInvestor.auditSummary();
       else if (pathname === '/api/v1/public/bootstrap') {
         const today = publicInvestor.today();

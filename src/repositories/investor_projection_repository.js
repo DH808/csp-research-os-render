@@ -21,13 +21,12 @@ function createInvestorProjectionRepository({ dbPath }) {
           AND f.metric IN (${metrics.map((metric) => `'${esc(metric)}'`).join(',')})
         ORDER BY f.entity_id,f.metric,f.period_end DESC,f.vintage DESC,f.fact_id`);
     },
-    pricing(limit = 100) {
+    pricing(limit = 500) {
       return sql.all(`SELECT p.provider,p.instance_type,p.gpu_generation,p.contract_type,p.price_per_hour,
           p.currency,p.as_of,s.source_type,s.title AS source_title,s.url AS source_url
         FROM pricing_observations p LEFT JOIN source_registry s USING(source_id)
-        WHERE p.price_per_hour IS NOT NULL
         ORDER BY p.as_of DESC,p.provider,p.instance_type,p.gpu_generation,p.price_per_hour,p.pricing_id
-        LIMIT ${Math.min(Math.max(Number(limit) || 100, 1), 200)}`);
+        LIMIT ${Math.min(Math.max(Number(limit) || 500, 1), 1000)}`);
     },
     universe() {
       return sql.all(`SELECT e.entity_id,e.name,e.ticker,e.entity_type,e.layer,
@@ -45,6 +44,65 @@ function createInvestorProjectionRepository({ dbPath }) {
         WHERE l.entity_id='${esc(entityId)}' AND p.publication_status='published'
         ORDER BY dc.title`);
     },
+    entityEvidence(entityId, limit = 20) {
+      return sql.all(`SELECT e.evidence_id,e.entity_id,e.module_id,e.source_type,e.publish_date,e.as_of,
+          e.snippet,e.extracted_metric,e.extracted_value,e.unit,e.claim_relation,
+          s.title,s.publisher,s.url
+        FROM evidence_cards e LEFT JOIN source_registry s USING(source_id)
+        WHERE e.entity_id='${esc(entityId)}'
+        ORDER BY COALESCE(e.publish_date,e.as_of,e.created_at) DESC,e.evidence_id
+        LIMIT ${Math.min(Math.max(Number(limit) || 20, 1), 1000)}`);
+    },
+    allEvidence() {
+      return sql.all(`SELECT e.evidence_id,e.entity_id,e.module_id,e.source_type,e.publish_date,e.as_of,
+          e.snippet,e.extracted_metric,e.extracted_value,e.unit,e.claim_relation,
+          s.title,s.publisher,s.url
+        FROM evidence_cards e LEFT JOIN source_registry s USING(source_id) ORDER BY e.evidence_id`);
+    },
+    claim(id) {
+      return sql.get(`SELECT claim_id,module_id,entity_id,claim_text,thesis_direction,status,confidence,
+        materiality,vintage,next_validation,invalidation_trigger FROM claims WHERE claim_id='${esc(id)}' LIMIT 1`);
+    },
+    claimCases(id) {
+      return sql.all(`SELECT c.decision_case_id,c.title,l.role FROM decision_case_claims l
+        JOIN decision_cases c USING(decision_case_id) JOIN public_decision_case_publications p USING(decision_case_id)
+        WHERE l.claim_id='${esc(id)}' AND p.publication_status='published' ORDER BY c.title`);
+    },
+    claimDrivers(id) {
+      return sql.all(`SELECT DISTINCT d.driver_id,d.name FROM decision_case_claims cc
+        JOIN decision_case_drivers cd USING(decision_case_id) JOIN drivers d USING(driver_id)
+        WHERE cc.claim_id='${esc(id)}' ORDER BY d.name`);
+    },
+    claimEvidence(id) {
+      return sql.all(`SELECT l.relation,l.note,e.evidence_id,e.entity_id,e.module_id,e.source_type,e.publish_date,e.as_of,
+        e.snippet,e.extracted_metric,e.extracted_value,e.unit,s.title,s.publisher,s.url
+        FROM claim_evidence_links l JOIN evidence_cards e USING(evidence_id) LEFT JOIN source_registry s USING(source_id)
+        WHERE l.claim_id='${esc(id)}' ORDER BY l.relation,COALESCE(e.publish_date,e.as_of,e.created_at) DESC,e.evidence_id`);
+    },
+    driverEntities(id) {
+      return sql.all(`SELECT DISTINCT e.entity_id,e.name,e.ticker,e.entity_type,e.layer
+        FROM decision_case_drivers d JOIN decision_case_entities ce USING(decision_case_id)
+        JOIN entities e USING(entity_id) WHERE d.driver_id='${esc(id)}' ORDER BY e.name`);
+    },
+    driverClaims(id) {
+      return sql.all(`SELECT DISTINCT c.claim_id,c.claim_text FROM decision_case_drivers d
+        JOIN decision_case_claims cc USING(decision_case_id) JOIN claims c USING(claim_id)
+        WHERE d.driver_id='${esc(id)}' ORDER BY c.claim_id`);
+    },
+    caseHistory(id) {
+      return sql.all(`SELECT event_type,event_at,label,detail FROM (
+        SELECT 'recommendation' event_type,changed_at event_at,new_recommendation label,reason detail FROM recommendation_events WHERE decision_case_id='${esc(id)}'
+        UNION ALL SELECT 'review',COALESCE(reviewed_at,created_at),verdict,review_note FROM decision_case_reviews WHERE decision_case_id='${esc(id)}'
+        UNION ALL SELECT 'publication',occurred_at,action,authorization_reason FROM public_decision_case_publication_events WHERE decision_case_id='${esc(id)}'
+      ) ORDER BY event_at DESC,event_type`);
+    },
+    metricRecords(metric, limit = 100) {
+      return sql.all(`SELECT f.fact_id,f.entity_id,e.name,e.ticker,f.metric,f.value,f.unit,f.period_start,f.period_end,
+        f.fiscal_period,f.vintage,s.title source_title,s.publisher,s.source_type,s.url source_url
+        FROM facts f LEFT JOIN entities e USING(entity_id) LEFT JOIN source_registry s USING(source_id)
+        WHERE f.metric='${esc(metric)}' AND f.value IS NOT NULL
+        ORDER BY f.period_end DESC,f.entity_id,f.vintage DESC,f.fact_id LIMIT ${Math.min(Math.max(Number(limit)||100,1),500)}`);
+    },
     counts() {
       return sql.get(`SELECT
         (SELECT count(*) FROM entities) entities,
@@ -54,7 +112,7 @@ function createInvestorProjectionRepository({ dbPath }) {
         (SELECT count(*) FROM power_observations) power_observations,
         (SELECT count(*) FROM dataset_snapshots) snapshots,
         (SELECT count(*) FROM pricing_observations) pricing,
-        (SELECT count(*) FROM pricing_observations WHERE price_per_hour IS NOT NULL) pricing_with_values,
+        (SELECT count(*) FROM pricing_observations WHERE price_per_hour IS NOT NULL AND price_per_hour>0) pricing_with_values,
         (SELECT count(*) FROM claims) claims,
         (SELECT count(*) FROM drivers) drivers,
         (SELECT count(*) FROM driver_observations) driver_observations,

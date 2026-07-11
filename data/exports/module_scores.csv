@@ -1,0 +1,11 @@
+module_id,name,module_id,coverage_score,official_source_score,recency_score,confidence_score,completeness_score,evidence_count,official_evidence_count,fact_count,missing_critical_count,score_label,scoring_notes,computed_at
+M1,AI capex revision / capital intensity,M1,0.7911,0.4615,1.0,0.7038,0.625,117,54,313,3,green_high_confidence,latest=2026-06-22; coverage_prior=High for official historical/current; Medium for consensus revisions,2026-07-07T16:49:47
+M2,AI revenue / workload monetization,M2,0.78,0.8,1.0,0.64,0.5,120,96,0,4,green_high_confidence,latest=2026-06-22; coverage_prior=Medium,2026-07-07T16:49:47
+M3,Depreciation / FCF conversion,M3,0.7694,0.3533,1.0,0.6443,0.625,150,53,712,3,yellow_usable_needs_review,latest=2026-06-30; coverage_prior=High for historical financials; Medium for segment-level cloud FCF,2026-07-07T16:49:47
+M4,RPO / backlog quality,M4,0.7383,0.1978,1.0,0.3088,0.625,364,72,0,3,yellow_usable_needs_review,latest=2026-07-06; coverage_prior=High for AMZN/ORCL/CRWV/MSFT; Low for private model labs,2026-07-07T16:49:47
+M6,Custom silicon / architecture economics,M6,0.6988,0.3938,1.0,0.4166,0.5,259,102,0,4,yellow_usable_needs_review,latest=2026-06-30; coverage_prior=Medium,2026-07-07T16:49:47
+M10,Profit-pool capture / supplier FCF retention,M10,0.6831,0.0154,1.0,0.4585,0.5,65,1,352,4,yellow_usable_needs_review,latest=2026-06-30; coverage_prior=High for public suppliers; Medium for AI attribution,2026-07-07T16:49:47
+M7,Power / time-to-power bottleneck,M7,0.6718,0.4088,1.0,0.4248,0.5,159,65,0,4,yellow_usable_needs_review,latest=2026-06-30; coverage_prior=Medium for company language; Low for geospatial/grid actuals,2026-07-07T16:49:47
+M5,Model-lab credit / concentration,M5,0.643,0.1714,1.0,0.2943,0.625,105,18,0,3,yellow_usable_needs_review,latest=2026-06-30; coverage_prior=Medium-low official; Medium market color,2026-07-07T16:49:47
+M8,Neocloud utilization/pricing stress,M8,0.4929,0.3333,0.25,0.2233,0.625,6,2,0,3,orange_partial,latest=; coverage_prior=High for CRWV; Medium for public peers; Low for private peers,2026-07-07T16:49:47
+M9,Overcapacity propagation test,M9,0.4767,0.1,1.0,0.1217,0.5,10,1,0,4,orange_partial,latest=2026-06-30; coverage_prior=Medium-low,2026-07-07T16:49:47

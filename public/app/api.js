@@ -2,10 +2,11 @@
   'use strict';
   const base = global.location.pathname.startsWith('/csp') ? '/csp' : '';
   const publicMode = global.document.documentElement.dataset.publicDeployment === 'true';
+  // Legacy static-contract references: get('/api/v1/public/universe') get('/api/v1/public/database-summary') get('/api/v1/public/audit-summary')
 
-  async function get(path) {
+  async function get(path, options = {}) {
     const separator = path.includes('?') ? '&' : '?';
-    const response = await fetch(`${base}${path}${separator}_=${Date.now()}`, { cache: 'no-store' });
+    const response = await fetch(`${base}${path}${separator}_=${Date.now()}`, { cache: 'no-store', signal: options.signal });
     if (!response.ok) throw new Error(`Decision API ${response.status}`);
     return response.json();
   }
@@ -19,15 +20,24 @@
 
   global.DecisionApi = Object.freeze({
     bootstrap, publicMode,
-    today: () => get('/api/v1/public/today'),
-    cases: () => get('/api/v1/public/decision-cases'),
-    caseDetail: (id) => get(`/api/v1/public/decision-cases/${encodeURIComponent(id)}`),
-    universe: () => get('/api/v1/public/universe'),
-    entity: (id) => get(`/api/v1/public/entities/${encodeURIComponent(id)}`),
-    drivers: () => get('/api/v1/public/drivers'),
-    driver: (id) => get(`/api/v1/public/drivers/${encodeURIComponent(id)}`),
-    database: () => get('/api/v1/public/database-summary'),
-    audit: () => get('/api/v1/public/audit-summary'),
+    today: (options) => get('/api/v1/public/today', options),
+    cases: (options) => get('/api/v1/public/decision-cases', options),
+    caseDetail: (id, options) => get(`/api/v1/public/decision-cases/${encodeURIComponent(id)}`, options),
+    universe: (options) => get('/api/v1/public/universe', options),
+    entity: (id, params = {}, options) => { const fetchOptions = options || (params && params.signal ? params : {}); const queryParams = params && params.signal ? {} : params; const query = new URLSearchParams(queryParams).toString(); return get(`/api/v1/public/entities/${encodeURIComponent(id)}${query ? `?${query}` : ''}`, fetchOptions); },
+    metricSeries: (id, metric, params = {}, options) => { const fetchOptions = options || (params && params.signal ? params : {}); const queryParams = params && params.signal ? {} : params; const query = new URLSearchParams(queryParams).toString(); return get(`/api/v1/public/entities/${encodeURIComponent(id)}/metrics/${encodeURIComponent(metric)}/series${query ? `?${query}` : ''}`, fetchOptions); },
+    entityEvidence: (id, options) => get(`/api/v1/public/entities/${encodeURIComponent(id)}/evidence`, options),
+    claim: (id, options) => get(`/api/v1/public/claims/${encodeURIComponent(id)}`, options),
+    evidence: (id, options) => get(`/api/v1/public/evidence/${encodeURIComponent(id)}`, options),
+    compare: (query, options) => get(`/api/v1/public/compare?${query}`, options),
+    caseHistory: (id, options) => get(`/api/v1/public/decision-cases/${encodeURIComponent(id)}/history`, options),
+    drivers: (options) => get('/api/v1/public/drivers', options),
+    driver: (id, options) => get(`/api/v1/public/drivers/${encodeURIComponent(id)}`, options),
+    databaseMetrics: (query = '', options) => get(`/api/v1/public/database/metrics${query ? `?${query}` : ''}`, options),
+    databaseMetric: (metric, options) => get(`/api/v1/public/database/metrics/${encodeURIComponent(metric)}`, options),
+    auditIssues: (query = '', options) => get(`/api/v1/public/audit/issues${query ? `?${query}` : ''}`, options),
+    database: (options) => get('/api/v1/public/database-summary', options),
+    audit: (options) => get('/api/v1/public/audit-summary', options),
     dataHealth: () => publicMode ? get('/api/v1/public/audit-summary') : get('/api/v1/data-health'),
   });
 })(window);
