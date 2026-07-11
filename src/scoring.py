@@ -10,6 +10,8 @@ OFFICIAL_SOURCE_TYPES = {
     "official_sec", "sec", "sec_official_url_via_jina_text_snapshot", "official_ir",
     "official_ir_pdf_via_jina", "official_cloud_product", "official_cloud_pricing",
     "official_product_or_company_page_via_jina", "non_us_official_ir", "public_company_ir",
+    "10-k", "10-q", "8-k", "6-k", "20-f", "s-1", "f-1", "sec_xbrl_companyfacts",
+    "private_company_official",
 }
 
 LOWER_QUALITY_TYPES = {"public_media_market_input", "alphapai_external_rag", "lmvk_existing_material"}

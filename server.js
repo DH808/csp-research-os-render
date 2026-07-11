@@ -3,12 +3,15 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const db = require('./src/db');
+const { createV1Router } = require('./src/api/v1_routes');
+const { requestId, applySecurityHeaders } = require('./src/api/http_utils');
 
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 8825);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const EXPORT_DIR = path.join(__dirname, 'data', 'exports');
 const HIDE_ERROR_DETAILS = db.PUBLIC_DEPLOYMENT;
+const v1Router = createV1Router({ dbPath: db.DB_PATH, publicDeployment: db.PUBLIC_DEPLOYMENT });
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -51,6 +54,9 @@ function serveStatic(req, res, pathname) {
   if (!filePath.startsWith(PUBLIC_DIR)) return sendError(res, 403, 'FORBIDDEN');
   fs.readFile(filePath, (err, data) => {
     if (err) return sendError(res, 404, 'NOT_FOUND');
+    if (path.extname(filePath) === '.html') {
+      data = Buffer.from(data.toString('utf8').replace('__PUBLIC_DEPLOYMENT__', String(db.PUBLIC_DEPLOYMENT)));
+    }
     send(res, 200, data, MIME[path.extname(filePath)] || 'application/octet-stream');
   });
 }
@@ -67,7 +73,10 @@ function handleApi(req, res, parsed) {
   const pathname = parsed.pathname;
   const q = parsed.query || {};
   try {
-    if (pathname === '/api/health') return send(res, 200, { ok: true, app: db.APP_ID, dbPath: db.publicDbPath(), at: new Date().toISOString() });
+    if (pathname === '/api/health') return send(res, 200, db.PUBLIC_DEPLOYMENT
+      ? { ok: true, app: db.APP_ID, mode: 'public', at: new Date().toISOString() }
+      : { ok: true, app: db.APP_ID, dbPath: db.publicDbPath(), at: new Date().toISOString() });
+    if (db.PUBLIC_DEPLOYMENT) return sendError(res, 404, 'PUBLIC_API_ONLY');
     if (pathname === '/api/meta') return send(res, 200, db.meta());
     if (pathname === '/api/state') return send(res, 200, db.state());
     if (pathname === '/api/modules') return send(res, 200, { modules: db.moduleList() });
@@ -103,9 +112,12 @@ function handleApi(req, res, parsed) {
 
 function createRequestHandler() {
   return (req, res) => {
+    const id = requestId(req);
+    applySecurityHeaders(res, id);
     const parsed = url.parse(req.url, true);
     const pathname = normalizeRequestPath(parsed.pathname || '/');
     const normalized = { ...parsed, pathname };
+    if (v1Router.route(req, res, normalized, id)) return;
     if (pathname.startsWith('/api/')) return handleApi(req, res, normalized);
     return serveStatic(req, res, pathname);
   };

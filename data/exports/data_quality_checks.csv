@@ -1,9 +1,0 @@
-check_id,check_name,check_scope,status,severity,details,created_at
-check_a51d4355f998a5e1,followup_tasks_generated,followup_tasks,pass,medium,open=35,2026-07-07T16:49:47
-check_472751325bbece4d,count_modules,modules,pass,info,10,2026-07-07T16:49:47
-check_5c7d9fdfb037c301,count_entities,entities,pass,info,44,2026-07-07T16:49:47
-check_b92251966069bb47,count_source_registry,source_registry,pass,info,188,2026-07-07T16:49:47
-check_e72acaa92e742479,count_evidence_cards,evidence_cards,pass,info,2124,2026-07-07T16:49:47
-check_97ba755d0e6a8025,count_facts,facts,pass,info,1377,2026-07-07T16:49:47
-check_f16ee8ae157b3161,count_module_scores,module_scores,pass,info,10,2026-07-07T16:49:47
-check_ccad8f5db3597b31,all_modules_scored,module_scores,pass,high,missing_scores=0,2026-07-07T16:49:47
